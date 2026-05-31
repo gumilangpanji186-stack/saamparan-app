@@ -1,0 +1,6 @@
+{
+  "name": "SAAMPARAN",
+  "description": "Media Sosial Video Pendek Hyperlocal Jaringan Luas dengan Slogan Cerdas Bersama di Lembur Kita",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
