@@ -24,6 +24,13 @@ class SaamparanViewModel : ViewModel() {
     val lemburs: List<String> = repository.getLemburs()
 
     // States
+    private val _userSaldo = MutableStateFlow(2) // Saldo awal komentar
+    val userSaldo: StateFlow<Int> = _userSaldo.asStateFlow()
+
+    fun tambahSaldo() {
+        _userSaldo.value += 3 // Menambah saldo komentar
+    }
+
     private val _selectedLembur = MutableStateFlow("Semua Lembur")
     val selectedLembur: StateFlow<String> = _selectedLembur.asStateFlow()
 
@@ -52,23 +59,65 @@ class SaamparanViewModel : ViewModel() {
     init {
         loadPostsForLembur("Semua Lembur")
 
-        // Open the user profile by default on startup as requested
+        // Buka profil pembuat bawaan sejak awal sesuai instruksi
         openCreatorProfile(currentSessionUsername)
 
-        // Catch real-time simulated uploads and show high-fidelity notifications
+        // Tangkap unggahan waktu nyata dan tampilkan spanduk notifikasi elegan
         viewModelScope.launch {
             repository.newPostNotification.collectLatest { newPost ->
-                // Check if current user is subscribed to this lembur or if on "Semua Lembur"
+                // Periksa apakah pengguna berlangganan wilayah tersebut atau berada di "Semua Lembur"
                 val activeLembur = _selectedLembur.value
                 if (activeLembur == "Semua Lembur" || activeLembur.equals(newPost.lembur, ignoreCase = true)) {
-                    // Update the active video list to show the new post
+                    // Hanya perbarui daftar beranda utama
                     val currentList = _videoPosts.value.toMutableList()
                     currentList.add(0, newPost)
                     _videoPosts.value = currentList
                 }
                 
-                // Always show elegant in-app notification banner
+                // Selalu tampilkan spanduk notifikasi di dalam aplikasi
                 _activeNotification.value = newPost
+            }
+        }
+
+        // GOOGLE NEARBY CONNECTIONS API: Simulasi Jaringan Mesh Latar Belakang
+        // Otomatis mencari, mendeteksi, menangkap, dan mengunduh file video 360p dari HP pengguna lain.
+        // ATURAN MANDATORI: Mengalirkan data hibrida ini HANYA untuk memperbarui Beranda Utama (main feed).
+        // Area Profil Kreator sama sekali tidak boleh dipengaruhi oleh aliran data mesh eksternal ini.
+        startMeshNetworkSimulatedSync()
+    }
+
+    private fun startMeshNetworkSimulatedSync() {
+        viewModelScope.launch {
+            // Simulasi deteksi berkala setiap 50 detik dari perangkat sekitar melalui Nearby Connections API
+            while (true) {
+                kotlinx.coroutines.delay(50000)
+                
+                // Membuat payload postingan video 360p terkompresi dari peer pengguna lain
+                val randomVillage = lemburs.filterNot { it == "Semua Lembur" }.random()
+                val peerMeshPost = VideoPost(
+                    id = "mesh_p2p_${java.util.UUID.randomUUID()}",
+                    videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4", // Representasi file video 360p hemat bandwidth
+                    title = "Video Berbagi Lewat Jaringan Mesh Terdekat",
+                    lembur = randomVillage,
+                    creatorUsername = "warga_sekitar_${(1..5).random()}",
+                    creatorName = "Warga Sumedang Sekitar",
+                    creatorAvatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+                    creatorBio = "Kreator luar terhubung otomatis menggunakan Google Nearby Connections.",
+                    likesCount = (10..55).random(),
+                    isLiked = false,
+                    comments = emptyList()
+                )
+
+                // ATURAN 2: Hanya aktif menyegarkan dan memperbarui daftar feed di Beranda Utama saja
+                val currentLembur = _selectedLembur.value
+                if (currentLembur == "Semua Lembur" || currentLembur.equals(peerMeshPost.lembur, ignoreCase = true)) {
+                    val currentList = _videoPosts.value.toMutableList()
+                    currentList.add(0, peerMeshPost)
+                    _videoPosts.value = currentList
+                }
+
+                // Tampilkan spanduk notifikasi di atas layar utama
+                _activeNotification.value = peerMeshPost
             }
         }
     }
@@ -98,7 +147,14 @@ class SaamparanViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             val profile = repository.getUserProfile(username)
-            _selectedCreatorProfile.value = profile
+            
+            // ATURAN 1: Pastikan daftar video yang muncul saat Kartu Profil ini aktif HANYA menampilkan video internal milik kreator itu sendiri.
+            // Tidak boleh diprogram untuk ikut menangkap atau menampilkan video dari jaringan mesh luar.
+            // Bersifat privat dan terkunci hanya untuk konten kreator yang bersangkutan.
+            val filteredPosts = profile.posts.filter { it.creatorUsername == username }
+            val strictlyCreatorProfile = profile.copy(posts = filteredPosts)
+            
+            _selectedCreatorProfile.value = strictlyCreatorProfile
             _isProfileViewOpen.value = true
             _isLoading.value = false
         }
@@ -130,8 +186,12 @@ class SaamparanViewModel : ViewModel() {
 
     fun addComment(postId: String, commentText: String) {
         if (commentText.isBlank()) return
+        if (_userSaldo.value <= 0) return
         viewModelScope.launch {
             try {
+                // Kurangi saldo komentar
+                _userSaldo.value = (_userSaldo.value - 1).coerceAtLeast(0)
+
                 val comment = repository.addComment(
                     postId = postId,
                     text = commentText,

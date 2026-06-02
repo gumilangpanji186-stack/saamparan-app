@@ -10,6 +10,11 @@ import androidx.compose.ui.Modifier
 import com.example.ui.SaamparanApp
 import com.example.ui.SaamparanViewModel
 import com.example.ui.theme.SaamparanTheme
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     private val viewModel: SaamparanViewModel by viewModels()

@@ -2,79 +2,40 @@ package com.example.ui
 
 import android.net.Uri
 import android.widget.VideoView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.outlined.Videocam
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,1360 +52,825 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
-import com.example.model.VideoPost
-import com.example.model.UserProfile
 import com.example.model.Comment
-import com.example.ui.theme.DarkSoil
-import com.example.ui.theme.EarthBrown
-import com.example.ui.theme.EarthBrownDark
-import com.example.ui.theme.EarthBrownLight
-import com.example.ui.theme.WarmIvoryBg
-import com.example.ui.theme.WarmIvorySurface
-import com.example.ui.theme.WarmGray
-import com.example.ui.theme.LeafGreenDark
-import java.util.UUID
+import com.example.model.UserProfile
+import com.example.model.VideoPost
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+// Color constants matching user specs
+val KremPekat = Color(0xFFD2B48C)
+val DeepBlack = Color(0xFF000000)
+val SemiTranslucentDark = Color(0xE6101010)
+
+// Warm Tone color constants
+val CokelatTanahHangat = Color(0xFF3E2723)
+val CokelatMudaHangat = Color(0xFF4E342E)
+val KremPekatHangat = Color(0xFFD2B48C)
+val KremKuningHangat = Color(0xFFE5C158)
+val OranyeBataLembut = Color(0xFFFFCC80)
+val MerahBataHangat = Color(0xFFD84315)
+val SemburatKremHangat = Color(0xFFFFF3E0)
+
+// Helper function to convert dynamic title & village info into Indonesian hashtags format
+fun convertToHashtags(title: String, lembur: String): String {
+    val clean = title.replace(Regex("[^a-zA-Z0-9 ]"), " ")
+    val words = clean.split(Regex("\\s+"))
+        .filter { it.isNotBlank() && it.length >= 3 }
+        .map { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+    
+    val hashtags = mutableListOf<String>()
+    if (words.isNotEmpty()) {
+        if (words.size > 1) {
+            hashtags.add("#" + words.take(3).joinToString(""))
+        } else {
+            hashtags.add("#" + words[0])
+        }
+        words.take(3).forEach { word ->
+            hashtags.add("#$word")
+        }
+    }
+    if (lembur.isNotBlank()) {
+        val cleanLembur = lembur.replace(Regex("[^a-zA-Z0-9]"), "")
+        if (cleanLembur.isNotBlank()) {
+            hashtags.add("#$cleanLembur")
+        }
+    }
+    hashtags.add("#Sumedang")
+    return hashtags.distinct().take(4).joinToString(" ")
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SaamparanApp(
     viewModel: SaamparanViewModel,
     modifier: Modifier = Modifier
 ) {
-    val selectedLembur by viewModel.selectedLembur.collectAsState()
-    val posts by viewModel.videoPosts.collectAsState()
-    val activeIndex by viewModel.activePostIndex.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+    
+    // States from view model
+    val rawPosts by viewModel.videoPosts.collectAsState()
     val isProfileOpen by viewModel.isProfileViewOpen.collectAsState()
-    val selectedProfile by viewModel.selectedCreatorProfile.collectAsState()
+    val creatorProfile by viewModel.selectedCreatorProfile.collectAsState()
     val isUploadOpen by viewModel.isUploadDialogOpen.collectAsState()
     val activeNotification by viewModel.activeNotification.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val userSaldo by viewModel.userSaldo.collectAsState()
 
-    var dropdownExpanded by remember { mutableStateOf(false) }
+    // 20 video FIFO constraint
+    val displayedPosts = remember(rawPosts) {
+        rawPosts.take(20)
+    }
 
+    // Media picker setup
+    val context = LocalContext.current
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoName by remember { mutableStateOf<String?>(null) }
-
+    
     val videoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedVideoUri = uri
         if (uri != null) {
-            selectedVideoName = uri.lastPathSegment ?: "video_galeri_pilihan.mp4"
+            selectedVideoName = uri.lastPathSegment ?: "video_pilihan.mp4"
+            viewModel.showUploadDialog()
         }
     }
 
-    val activePost = if (posts.isNotEmpty() && activeIndex in posts.indices) {
-        posts[activeIndex]
-    } else {
-        null
+    val safeLaunchVideoPicker = {
+        try {
+            videoLauncher.launch("video/*")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.widget.Toast.makeText(
+                context,
+                "Aplikasi pemilih video (Gallery/File Manager) tidak tersedia di perangkat ini.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = WarmIvoryBg
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Main Content Column: Top warm cream bar, Middle Video player, Bottom warm cream bar
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(WarmIvoryBg)
-            ) {
-                // 1. BAGIAN ATAS: Krem Hangat bar containing:
-                // - Minimalist profile of currently playing video uploader (or placeholder if empty)
-                // - Dropdown filter for "Lembur"
-                // - "Profil Saya" button to open the Profile overlay
-                Surface(
-                    color = WarmIvoryBg,
-                    modifier = Modifier.fillMaxWidth(),
-                    shadowElevation = 0.dp
-                ) {
-                    Row(
+    // Vertical Pager state
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { displayedPosts.size }
+    )
+
+    // Notify VM when active post changes
+    LaunchedEffect(pagerState.currentPage, displayedPosts) {
+        if (displayedPosts.isNotEmpty() && pagerState.currentPage in displayedPosts.indices) {
+            viewModel.setActivePostIndex(pagerState.currentPage)
+        }
+    }
+
+    // Modal drawer state for comments
+    var showCommentsDrawer by remember { mutableStateOf(false) }
+    var isKartuProfilOpen by remember { mutableStateOf(false) }
+
+    // DEFINISI PALET WARNA HANGAT SAAMPARAN (ANTI-HITAM & ANTI-PUTIH)
+    val warnaLatarCokelatTanah = Color(0xFF4A3B32)  // Pengganti Hitam Pekat
+    val warnaKremLembutHangat = Color(0xFFF5F5DC)   // Pengganti Putih Standar (Ikon & Teks Atas)
+    val warnaKremPekatKertas = Color(0xFFEFEBE9)    // Wadah Kartu Note Mini
+    val warnaCokelatTeksTua = Color(0xFF2E241E)     // Teks di dalam Kartu Note
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(warnaLatarCokelatTanah)
+    ) {
+        if (displayedPosts.isNotEmpty()) {
+            VerticalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val currentPost = displayedPosts[page]
+                
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Fullscreen Video Player
+                    VideoPlayerComponent(
+                        videoUrl = currentPost.videoUrl,
+                        onDoubleTap = { showCommentsDrawer = true },
+                        onTap = { safeLaunchVideoPicker() },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Scrim overlay behind text for readability
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Creator Profile Info (Minimal)
-                        if (activePost != null) {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.openCreatorProfile(activePost.creatorUsername) }
-                                    .padding(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AsyncImage(
-                                    model = activePost.creatorAvatarUrl,
-                                    contentDescription = "Avatar ${activePost.creatorName}",
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .border(2.dp, EarthBrownDark, CircleShape),
-                                    contentScale = ContentScale.Crop
+                            .fillMaxHeight(0.4f)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(0.85f))
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = activePost.creatorName,
-                                        color = DarkSoil,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            tint = EarthBrown,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                        Text(
-                                            text = "Lembur ${activePost.lembur}",
-                                            color = EarthBrown,
-                                            fontSize = 10.sp
-                                        )
+                            )
+                    )
+                }
+            }
+        } else {
+            // Empty state placeholder
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = "Belum ada video",
+                        tint = warnaKremLembutHangat,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Belum ada konten video yang tersedia.",
+                        color = warnaKremLembutHangat,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+
+        // KONTROL ATAS HALAMAN (DINAMIS & FULLSCREEN BLEND)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // POJOK ATAS KIRI: TEKS INDIKATOR HALAMAN
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (displayedPosts.isNotEmpty()) "${pagerState.currentPage + 1} dari ${displayedPosts.size}" else "1 dari 1",
+                    color = warnaKremLembutHangat, // Teks Krem Lembut Hangat
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag("active_user_nickname")
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color.Green, shape = RoundedCornerShape(50)) // Radar Hijau Mikro
+                )
+            }
+
+            // Foto Profil Mikro Pengguna (24dp) di pojok kanan atas
+            AsyncImage(
+                model = creatorProfile?.avatarUrl ?: "https://api.dicebear.com/7.x/adventurer/svg?seed=mojang_priangan",
+                contentDescription = "Profil Sesi",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .border(1.1.dp, warnaKremLembutHangat.copy(0.6f), CircleShape)
+                    .clickable {
+                        viewModel.openCreatorProfile(viewModel.currentSessionUsername)
+                    }
+                    .testTag("session_profile_avatar"),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // ==========================================
+        // SISI KANAN SAMPING: STRUKTUR STRIP TOMBOL KREM LENGKAP
+        // ==========================================
+        if (displayedPosts.isNotEmpty()) {
+            val activePost = displayedPosts[pagerState.currentPage]
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(32.dp) // Jarak renggang antar-tombol yang presisi
+            ) {
+                // [ATAS]: TOMBOL LIKE / SUKA (WARNA KREM)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Suka Karya",
+                        tint = if (activePost.isLiked) Color(0xFFE57373) else warnaKremLembutHangat,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clickable { viewModel.toggleLikePost(activePost.id) }
+                            .testTag("exchange_like_to_saldo_button")
+                    )
+                    Text(
+                        text = activePost.likesCount.toString(), 
+                        color = warnaKremLembutHangat, 
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                // [TENGAH]: TOMBOL KOMENTAR / SAWALA (WARNA KREM)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Comment,
+                        contentDescription = "Buka Sawala Komentar",
+                        tint = warnaKremLembutHangat,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clickable { showCommentsDrawer = true }
+                    )
+                    Text(
+                        text = activePost.comments.size.toString(), 
+                        color = warnaKremLembutHangat, 
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                // [TOMBOL UNGGAH/UNDUH DI SINI TELAH DIHAPUS TOTAL DEMI PRIVASI]
+
+                // [BAWAH]: TOMBOL HOME / BERANDA (WARNA KREM)
+                Icon(
+                    imageVector = Icons.Default.Home,
+                    contentDescription = "Kembali ke Beranda Utama",
+                    tint = warnaKremLembutHangat,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable {
+                            coroutineScope.launch {
+                                // Run Radar search to find nearest video relative to the active post's lembur
+                                val radarUseCase = com.example.domain.SearchNearbyVideosUseCase()
+                                val nearestList = radarUseCase.findNearestVideos(displayedPosts, activePost.lembur)
+                                
+                                // Show nearby content detection in Indonesian format
+                                val otherNearest = nearestList.filter { it.first.id != activePost.id }
+                                    .take(2)
+                                
+                                val message = if (otherNearest.isNotEmpty()) {
+                                    val itemsText = otherNearest.joinToString("\n") { 
+                                        "📍 ${it.first.title} (${String.format(java.util.Locale.US, "%.1f", it.second)} km di ${it.first.lembur})" 
+                                    }
+                                    "📡 Radar Saamparan mendeteksi video terdekat dari ${activePost.lembur}:\n$itemsText"
+                                } else {
+                                    "📡 Radar Saamparan: Tidak ada video sekitar dalam jangkauan radar."
+                                }
+                                
+                                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+
+                                viewModel.selectLembur("Semua Lembur")
+                                pagerState.scrollToPage(0)
+                            }
+                        }
+                )
+            }
+        }
+
+        // ==========================================
+        // 3. POJOK KIRI BAWAH: KARTU PROFIL NOTE SANGAT KECIL
+        // ==========================================
+        if (isKartuProfilOpen && displayedPosts.isNotEmpty()) {
+            val activePost = displayedPosts[pagerState.currentPage]
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .width(220.dp) // Ukuran diperkecil secara ekstrem (Sangat Mikro)
+                    .background(
+                        warnaKremPekatKertas, 
+                        shape = RoundedCornerShape(topEnd = 10.dp) // Sudut melengkung kecil yang estetik
+                    )
+                    .padding(10.dp)
+                    .testTag("creator_profile_floating_card")
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SAAMPARAN",
+                            fontWeight = FontWeight.Bold,
+                            color = warnaCokelatTeksTua,
+                            fontSize = 11.sp // Teks judul diperkecil
+                        )
+                        Text(
+                            text = "✕",
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .clickable { isKartuProfilOpen = false }
+                                .padding(2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(
+                            model = activePost.creatorAvatarUrl,
+                            contentDescription = "Foto Profil",
+                            modifier = Modifier
+                                .size(20.dp) // Foto mikro kreativitas di dalam kartu (20dp)
+                                .clip(CircleShape)
+                                .background(Color.DarkGray)
+                                .clickable {
+                                    viewModel.openCreatorProfile(activePost.creatorUsername)
+                                }
+                                .testTag("creator_profile_avatar_bottom"),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "@${activePost.creatorUsername}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = warnaCokelatTeksTua,
+                                modifier = Modifier.clickable {
+                                    viewModel.openCreatorProfile(activePost.creatorUsername)
+                                }
+                            )
+                            Text(
+                                text = "di ${activePost.lembur}",
+                                fontSize = 9.sp, // Teks sub-lokasi diperkecil maksimal
+                                color = warnaCokelatTeksTua.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // DOCKABLE CUSTOM SLIDING COMMENT DRAWER
+        if (showCommentsDrawer && displayedPosts.isNotEmpty()) {
+            val activePost = displayedPosts[pagerState.currentPage]
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(0.4f))
+                    .clickable { showCommentsDrawer = false }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.6f)
+                        .align(Alignment.BottomCenter)
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                        .background(CokelatTanahHangat) // COKELAT TANAH HANGAT
+                        .border(
+                            1.dp,
+                            KremKuningHangat.copy(0.3f), // KREM PEKAT HANGAT
+                            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                        )
+                        .clickable(enabled = false) { }
+                        .navigationBarsPadding()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Header Drawer
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Sawala Komentar (${activePost.comments.size})",
+                                color = OranyeBataLembut, // ORANYE BATA LEMBUT
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = { showCommentsDrawer = false }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Tutup",
+                                    tint = OranyeBataLembut // ORANYE BATA LEMBUT
+                                )
+                            }
+                        }
+
+                        // Baris Ekonomi & Penukaran Saldo
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Saldo Komentar: $userSaldo token",
+                                color = KremPekatHangat, // KREM PEKAT HANGAT
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            
+                            Button(
+                                onClick = { viewModel.tambahSaldo() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = KremKuningHangat, // KREM PEKAT HANGAT
+                                    contentColor = CokelatTanahHangat // Cokelat tanah hangat
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .height(30.dp)
+                                    .testTag("exchange_saldo_button"),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Tukar Saldo", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+ 
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = OranyeBataLembut.copy(0.15f)
+                        )
+
+                        // Comment list
+                        if (activePost.comments.isNotEmpty()) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(activePost.comments) { comment ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(KremPekatHangat.copy(0.2f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = comment.username.take(1).uppercase(),
+                                                color = KremPekatHangat, // KREM PEKAT HANGAT
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "@${comment.username}",
+                                                    color = KremPekatHangat, // KREM PEKAT HANGAT
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = comment.timestamp,
+                                                    color = KremPekatHangat.copy(0.5f),
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                            Text(
+                                                text = comment.text,
+                                                color = SemburatKremHangat, // Semburat krem lembut hangat
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         } else {
-                            // Sawah placeholder when empty
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Videocam,
-                                    contentDescription = null,
-                                    tint = EarthBrown,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = "SAAMPARAN",
-                                    color = DarkSoil,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = "Belum ada komentar. Jadilah yang pertama!",
+                                    color = KremPekatHangat.copy(0.6f),
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
 
-                        // Right side: Lembur selector + My Profile access
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Dropdown selector for Lembur (Village)
-                            Surface(
-                                color = WarmIvorySurface,
-                                shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight),
-                                modifier = Modifier
-                                    .clickable { dropdownExpanded = true }
-                                    .testTag("lembur_dropdown")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                        // Input field tucked inside comments drawer
+                        var commentText by remember { mutableStateOf("") }
+                        val forbiddenInputs = listOf("halo", "salam", "kenalin", "nama saya", "perkenalkan", "dari kota", "asal", "follback")
+                        val containsIntroSpam = remember(commentText) {
+                            val lower = commentText.lowercase().trim()
+                            forbiddenInputs.any { lower.contains(it) }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .imePadding()
+                                .padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val sisaSaldoLike = userSaldo
+                            if (sisaSaldoLike <= 0) {
+                                // Jika sisaSaldoLike <= 0, kunci input teks komentar dan gantikan dengan Tombol Krem bertuliskan "Tukarkan 1 Like Karya Jadi Saldo Komentar"
+                                Button(
+                                    onClick = { viewModel.tambahSaldo() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = KremKuningHangat,
+                                        contentColor = CokelatTanahHangat
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .testTag("exchange_like_to_saldo_button"),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = EarthBrownDark,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = selectedLembur,
-                                        color = EarthBrownDark,
-                                        fontSize = 11.sp,
+                                        text = "Tukarkan 1 Like Karya Jadi Saldo Komentar",
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.widthIn(max = 100.dp)
+                                        fontSize = 12.sp
                                     )
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = "Dropdown Lembur",
-                                        tint = EarthBrownDark,
-                                        modifier = Modifier.size(14.dp)
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = commentText,
+                                        onValueChange = { commentText = it },
+                                        enabled = sisaSaldoLike > 0,
+                                        placeholder = {
+                                            Text(
+                                                text = "Tulis komentar...",
+                                                color = KremPekatHangat.copy(0.5f),
+                                                fontSize = 12.sp
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("comment_input_drawer"),
+                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                            color = SemburatKremHangat,
+                                            fontSize = 12.sp
+                                        ),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            cursorColor = KremKuningHangat,
+                                            focusedBorderColor = if (containsIntroSpam) MerahBataHangat else KremKuningHangat,
+                                            unfocusedBorderColor = if (containsIntroSpam) MerahBataHangat.copy(0.7f) else KremPekatHangat.copy(0.5f),
+                                            focusedContainerColor = CokelatMudaHangat,
+                                            unfocusedContainerColor = CokelatMudaHangat,
+                                            disabledContainerColor = CokelatMudaHangat.copy(0.6f),
+                                            disabledBorderColor = KremPekatHangat.copy(0.2f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        maxLines = 2
+                                    )
+
+                                    IconButton(
+                                        onClick = {
+                                            if (commentText.isNotBlank() && !containsIntroSpam && sisaSaldoLike > 0) {
+                                                viewModel.addComment(activePost.id, commentText)
+                                                commentText = ""
+                                            }
+                                        },
+                                        enabled = commentText.isNotBlank() && !containsIntroSpam && sisaSaldoLike > 0,
+                                        modifier = Modifier.testTag("submit_comment_drawer_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Send,
+                                            contentDescription = "Kirim",
+                                            tint = if (commentText.isNotBlank() && !containsIntroSpam && sisaSaldoLike > 0) KremKuningHangat else KremKuningHangat.copy(0.3f)
+                                        )
+                                    }
+                                }
+
+                                if (containsIntroSpam) {
+                                    Text(
+                                        text = "Dilarang melakukan perkenalan! Komentar khusus hanya boleh membahas tema konten video kreator.",
+                                        color = MerahBataHangat, // Merah bata senada dengan tema hangat
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                                     )
                                 }
                             }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // "Profil Saya" button
-                            IconButton(
-                                onClick = {
-                                    viewModel.openCreatorProfile(viewModel.currentSessionUsername)
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(EarthBrownLight.copy(alpha = 0.3f), CircleShape)
-                                    .testTag("my_profile_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = "Profil Saya",
-                                    tint = EarthBrownDark,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
                         }
                     }
                 }
-
-                DropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier.background(WarmIvorySurface)
-                ) {
-                    viewModel.lemburs.forEach { lembur ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = lembur,
-                                    color = DarkSoil,
-                                    fontWeight = if (lembur == selectedLembur) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            onClick = {
-                                viewModel.selectLembur(lembur)
-                                dropdownExpanded = false
-                            },
-                            modifier = Modifier.testTag("lembur_item_$lembur")
-                        )
-                    }
-                }
-
-                // 2. BAGIAN TENGAH: Full video player taking available space
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color.Black)
-                ) {
-                    if (isLoading && posts.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = EarthBrownDark)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Nuju nyandak video ti sawah...",
-                                    color = WarmIvorySurface,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    } else if (posts.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Videocam,
-                                    contentDescription = null,
-                                    tint = EarthBrownLight,
-                                    modifier = Modifier.size(72.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Teu aya video di area $selectedLembur",
-                                    color = WarmIvoryBg,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Mangga ketok tombol Profil (ikon katuhu luhur) atanapi pilih Lembur sanesna.",
-                                    color = EarthBrownLight,
-                                    fontSize = 14.sp,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth(0.8f)
-                                )
-                            }
-                        }
-                    } else {
-                        activePost?.let { post ->
-                            VideoPlayerComponent(
-                                videoUrl = post.videoUrl,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-
-                // 3. BAGIAN BAWAH: Krem Hangat bar containing only the title
-                if (activePost != null) {
-                    Surface(
-                        color = WarmIvoryBg,
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        shadowElevation = 0.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp)
-                        ) {
-                            Text(
-                                text = activePost.title,
-                                color = DarkSoil,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Start
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Real-time notification system
-            AnimatedVisibility(
-                visible = activeNotification != null,
-                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(12.dp)
-            ) {
-                activeNotification?.let { notif ->
-                    NotificationBanner(
-                        title = notif.title,
-                        lembur = notif.lembur,
-                        creator = notif.creatorName,
-                        onAction = {
-                            val index = posts.indexOfFirst { it.id == notif.id }
-                            if (index != -1) {
-                                viewModel.setActivePostIndex(index)
-                            } else {
-                                viewModel.selectLembur(notif.lembur)
-                                viewModel.setActivePostIndex(0)
-                            }
-                            viewModel.dismissNotification()
-                        },
-                        onDismiss = { viewModel.dismissNotification() }
-                    )
-                }
-            }
-
-            // Interactive Profile Overlay sheet containing ALL interaction buttons, navigation control deck, and upload panel!
-            AnimatedVisibility(
-                visible = isProfileOpen && selectedProfile != null,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                selectedProfile?.let { profile ->
-                    val currentPost = posts.firstOrNull { it.id == activePost?.id } ?: activePost
-                    UserProfileOverlay(
-                        profile = profile,
-                        activeVideoPost = currentPost,
-                        activePostIndex = activeIndex,
-                        totalPostsSize = posts.size,
-                        currentUsername = viewModel.currentSessionUsername,
-                        currentName = viewModel.currentSessionName,
-                        allPosts = posts,
-                        onSelectVideo = { post ->
-                            val index = posts.indexOfFirst { it.id == post.id }
-                            if (index != -1) {
-                                viewModel.setActivePostIndex(index)
-                            }
-                            viewModel.closeProfileView()
-                        },
-                        onPrevVideo = {
-                            if (activeIndex > 0) viewModel.setActivePostIndex(activeIndex - 1)
-                        },
-                        onNextVideo = {
-                            if (activeIndex < posts.size - 1) viewModel.setActivePostIndex(activeIndex + 1)
-                        },
-                        onLikeClicked = { currentPost?.id?.let { viewModel.toggleLikePost(it) } },
-                        onCommentPosted = { txt -> currentPost?.id?.let { viewModel.addComment(it, txt) } },
-                        onUploadRequested = { viewModel.showUploadDialog() },
-                        onBack = { viewModel.closeProfileView() }
-                    )
-                }
-            }
-
-            // Create Video Dialog Screen
-            if (isUploadOpen) {
-                UploadDialog(
-                    lemburs = viewModel.lemburs.filter { it != "Semua Lembur" },
-                    selectedVideoUri = selectedVideoUri,
-                    selectedVideoName = selectedVideoName,
-                    onPickVideo = { videoLauncher.launch("video/*") },
-                    onClearVideo = {
-                        selectedVideoUri = null
-                        selectedVideoName = null
-                    },
-                    onPost = { title, lembur, videoUrl ->
-                        viewModel.createNewPost(title, lembur, videoUrl)
-                        selectedVideoUri = null
-                        selectedVideoName = null
-                    },
-                    onDismiss = {
-                        viewModel.hideUploadDialog()
-                        selectedVideoUri = null
-                        selectedVideoName = null
-                    }
-                )
             }
         }
+
+        // LOADING OVERLAY
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = KremPekat)
+            }
+        }
+
+        // REAL-TIME BROADCAST NOTIFICATION BANNER
+        activeNotification?.let { notifPost ->
+            NotificationBanner(
+                post = notifPost,
+                onDismiss = { viewModel.dismissNotification() }
+            )
+        }
+
+
     }
+
+    // MODERN INTEGRATED UPLOAD FORM DIALOG (TRIGGERS FROM VIDEO LAUNCHER)
+    if (isUploadOpen) {
+        UploadDialog(
+            lemburs = viewModel.lemburs.filter { it != "Semua Lembur" },
+            selectedVideoUri = selectedVideoUri,
+            selectedVideoName = selectedVideoName,
+            onPickVideo = { safeLaunchVideoPicker() },
+            onClearVideo = {
+                selectedVideoUri = null
+                selectedVideoName = null
+                viewModel.hideUploadDialog()
+            },
+            onPost = { title, lembur, videoUrl ->
+                viewModel.createNewPost(title, lembur, videoUrl)
+                selectedVideoUri = null
+                selectedVideoName = null
+            },
+            onDismiss = {
+                viewModel.hideUploadDialog()
+                selectedVideoUri = null
+                selectedVideoName = null
+            }
+        )
+    }
+
+
 }
 
 @Composable
 fun VideoPlayerComponent(
     videoUrl: String,
+    onDoubleTap: () -> Unit,
+    onTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(true) }
     var buffering by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
 
-    val videoView = remember(videoUrl) {
-        VideoView(context).apply {
-            setVideoURI(Uri.parse(videoUrl))
-            setOnPreparedListener { mediaPlayer ->
-                mediaPlayer.isLooping = true
-                mediaPlayer.setVolume(0f, 0f) // Mute to keep it clean on start
-                start()
-                buffering = false
-            }
-            setOnErrorListener { _, _, _ ->
-                buffering = false
-                false
-            }
-        }
+    // Auto-reject if resolution is detected above 360p (represented by "720p", "1080p", "high")
+    val isAbove360p = remember(videoUrl) {
+        videoUrl.contains("1080p", ignoreCase = true) || 
+        videoUrl.contains("720p", ignoreCase = true) || 
+        videoUrl.contains("high", ignoreCase = true)
     }
 
-    DisposableEffect(videoUrl) {
-        onDispose {
-            videoView.stopPlayback()
-        }
+    var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
+
+    LaunchedEffect(videoUrl) {
+        buffering = !isAbove360p
+        hasError = isAbove360p
     }
 
     Box(
         modifier = modifier
             .background(Color.Black)
-            .clickable {
-                isPlaying = !isPlaying
-                if (isPlaying) {
-                    videoView.start()
-                } else {
-                    videoView.pause()
-                }
+            .pointerInput(videoUrl) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        onDoubleTap()
+                    },
+                    onTap = {
+                        onTap()
+                    }
+                )
             }
     ) {
-        AndroidView(
-            factory = { videoView },
-            modifier = Modifier.fillMaxSize()
-        )
+        if (!isAbove360p) {
+            key(videoUrl) {
+                AndroidView(
+                    factory = { ctx ->
+                        VideoView(ctx).apply {
+                            setOnPreparedListener { mediaPlayer ->
+                                mediaPlayer.isLooping = true
+                                mediaPlayer.setVolume(0f, 0f) // Mute to keep it clean on start
+                                if (isPlaying) {
+                                    start()
+                                }
+                                buffering = false
+                                hasError = false
+                            }
+                            setOnErrorListener { _, _, _ ->
+                                buffering = false
+                                hasError = true
+                                true // Return true so that the native error alerts do not show up/cause crashes
+                            }
+                            try {
+                                setVideoURI(Uri.parse(videoUrl))
+                            } catch (e: Exception) {
+                                buffering = false
+                                hasError = true
+                                e.printStackTrace()
+                            }
+                            videoViewRef = this
+                        }
+                    },
+                    update = { view ->
+                        if (isPlaying) {
+                            view.start()
+                        } else {
+                            view.pause()
+                        }
+                    },
+                    onRelease = { view ->
+                        view.stopPlayback()
+                        videoViewRef = null
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
 
-        if (buffering) {
+        if (buffering && !isAbove360p) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = EarthBrownLight)
+                CircularProgressIndicator(color = KremPekat)
             }
         }
-    }
-}
 
-@Composable
-fun UserProfileOverlay(
-    profile: UserProfile,
-    activeVideoPost: VideoPost?,
-    activePostIndex: Int,
-    totalPostsSize: Int,
-    currentUsername: String,
-    currentName: String,
-    allPosts: List<VideoPost>,
-    onSelectVideo: (VideoPost) -> Unit,
-    onPrevVideo: () -> Unit,
-    onNextVideo: () -> Unit,
-    onLikeClicked: () -> Unit,
-    onCommentPosted: (String) -> Unit,
-    onUploadRequested: () -> Unit,
-    onBack: () -> Unit
-) {
-    var commentInputText by remember { mutableStateOf("") }
-    var selectedTab by remember { mutableStateOf(0) }
-    val likedPosts = remember(allPosts) { allPosts.filter { it.isLiked } }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("creator_profile_sheet"),
-        color = WarmIvoryBg
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(WarmIvorySurface)
-                    .border(
-                        width = 1.dp,
-                        color = EarthBrownLight.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        if (isAbove360p) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("back_to_feed_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Kembali ke Beranda",
-                            tint = DarkSoil
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Kontrol & Profil",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DarkSoil
-                    )
-                }
-
-                // Add Upload/Posting feature (+) button directly on the Profile header
-                Button(
-                    onClick = onUploadRequested,
-                    colors = ButtonDefaults.buttonColors(containerColor = EarthBrownDark),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("profile_upload_video_btn")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Unggah Video",
-                        tint = WarmIvorySurface,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Video Anyar",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = WarmIvorySurface
-                    )
-                }
+                Text(
+                    text = "Auto-Reject: Resolusi di atas 360p terdeteksi! Hanya mendukung resolusi 360p offline.",
+                    color = MerahBataHangat,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
             }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+        } else if (hasError) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // 1. Identity Panel
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(WarmIvorySurface, RoundedCornerShape(16.dp))
-                            .border(1.dp, EarthBrownLight.copy(0.3f), RoundedCornerShape(16.dp))
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        AsyncImage(
-                            model = profile.avatarUrl,
-                            contentDescription = profile.name,
-                            modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .border(2.dp, EarthBrownDark, CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = profile.name,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp,
-                            color = DarkSoil
-                        )
-
-                        Text(
-                            text = "@${profile.username}",
-                            color = EarthBrown,
-                            fontSize = 13.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = EarthBrown,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = "Lembur ${profile.lembur}",
-                                color = DarkSoil,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = profile.followersCount.toString(),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = DarkSoil
-                                )
-                                Text(
-                                    text = "Pangjeujeuh (Followers)",
-                                    fontSize = 10.sp,
-                                    color = EarthBrown
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = profile.followingCount.toString(),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = DarkSoil
-                                )
-                                Text(
-                                    text = "Dijeujeuhkeun (Following)",
-                                    fontSize = 10.sp,
-                                    color = EarthBrown
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = profile.bio,
-                            fontSize = 12.sp,
-                            color = DarkSoil,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-                    }
-                }
-
-                // 2. High-Polished Organic Pill Tab Selector
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(WarmGray, RoundedCornerShape(12.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val tabs = listOf(
-                            Triple(0, "Kagiatan", Icons.Default.Forum),
-                            Triple(1, "Nu Disuka", Icons.Default.Favorite),
-                            Triple(2, "Setélan", Icons.Default.Settings)
-                        )
-                        tabs.forEach { (idx, title, icon) ->
-                            val isSelected = selectedTab == idx
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) EarthBrownDark else Color.Transparent)
-                                    .clickable { selectedTab = idx }
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = title,
-                                    tint = if (isSelected) WarmIvorySurface else EarthBrownDark,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = title,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) WarmIvorySurface else EarthBrownDark
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 3. Conditional Tab Content Rendering
-                if (selectedTab == 0) {
-                    // TAB 0: ORIGINAL KAGIATAN DECK AND DISCUSSION
-                    if (totalPostsSize > 1) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = WarmIvorySurface),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.3f)),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "KONTROL NAVIGASI FEED VIDEO",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = EarthBrownDark,
-                                        letterSpacing = 0.5.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceEvenly,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        IconButton(
-                                            onClick = onPrevVideo,
-                                            enabled = activePostIndex > 0,
-                                            modifier = Modifier.testTag("nav_prev_btn")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.KeyboardArrowLeft,
-                                                contentDescription = "Sebelumnya",
-                                                tint = if (activePostIndex > 0) EarthBrownDark else EarthBrownLight,
-                                                modifier = Modifier.size(28.dp)
-                                            )
-                                        }
-
-                                        Text(
-                                            text = "${activePostIndex + 1} ti $totalPostsSize",
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp,
-                                            color = DarkSoil
-                                        )
-
-                                        IconButton(
-                                            onClick = onNextVideo,
-                                            enabled = activePostIndex < totalPostsSize - 1,
-                                            modifier = Modifier.testTag("nav_next_btn")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.KeyboardArrowRight,
-                                                contentDescription = "Terasna",
-                                                tint = if (activePostIndex < totalPostsSize - 1) EarthBrownDark else EarthBrownLight,
-                                                modifier = Modifier.size(28.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    activeVideoPost?.let { post ->
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = WarmIvorySurface),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.3f)),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(
-                                        text = "DILALON-NYAWALA",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = EarthBrownDark,
-                                        letterSpacing = 0.5.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = post.title,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = DarkSoil
-                                    )
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // Like counter action panel
-                                        Row(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable { onLikeClicked() }
-                                                .background(EarthBrownLight.copy(0.3f))
-                                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                contentDescription = "Like",
-                                                tint = if (post.isLiked) Color.Red else EarthBrown,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "${post.likesCount} Dirorojong",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                color = DarkSoil
-                                            )
-                                        }
-
-                                        // Display comments tally
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Forum,
-                                                contentDescription = null,
-                                                tint = EarthBrown,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "${post.comments.size} Sawala",
-                                                color = DarkSoil,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Comments Section List Title
-                        item {
-                            Text(
-                                text = "Babakan Sawala (Diskusi)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DarkSoil,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                        }
-
-                        if (post.comments.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Sok, janten jalmi kahiji anu nyawala di video ieu!",
-                                        color = EarthBrown,
-                                        fontSize = 11.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        } else {
-                            items(post.comments) { comment ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(WarmIvorySurface, RoundedCornerShape(12.dp))
-                                        .border(1.dp, WarmGray, RoundedCornerShape(12.dp))
-                                        .padding(10.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .background(EarthBrownLight.copy(alpha = 0.3f), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = comment.name.take(2).uppercase(),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            color = DarkSoil
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = comment.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                color = DarkSoil
-                                            )
-                                            Text(
-                                                text = comment.timestamp,
-                                                fontSize = 9.sp,
-                                                color = EarthBrown
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = comment.text,
-                                            fontSize = 11.sp,
-                                            color = DarkSoil
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if (selectedTab == 1) {
-                    // TAB 1: LIKED VIDEOS GRID/LIST
-                    item {
-                        Text(
-                            text = "Pidéo Nu Disuka (Favorit kuring)",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DarkSoil,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
-                    }
-
-                    if (likedPosts.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = WarmIvorySurface),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.3f)),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FavoriteBorder,
-                                        contentDescription = null,
-                                        tint = EarthBrownLight,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Teu aya pidéo nu disuka",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = DarkSoil
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Ketok ikon cinta beureum ❤️ dina pidéo feed kanggo nambihan karesep anjeun didieu.",
-                                        fontSize = 11.sp,
-                                        color = EarthBrown,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        items(likedPosts) { post ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSelectVideo(post) }
-                                    .testTag("liked_video_card_${post.id}"),
-                                colors = CardDefaults.cardColors(containerColor = WarmIvorySurface),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.3f)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(EarthBrownDark),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .background(WarmIvorySurface.copy(alpha = 0.2f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.KeyboardArrowRight,
-                                                contentDescription = "Puter",
-                                                tint = WarmIvorySurface,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(
-                                            text = post.title,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = DarkSoil,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "Ku: ${post.creatorName}",
-                                            fontSize = 10.sp,
-                                            color = EarthBrown
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.LocationOn,
-                                                contentDescription = null,
-                                                tint = EarthBrown,
-                                                modifier = Modifier.size(10.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text(
-                                                text = "Lembur ${post.lembur}",
-                                                color = EarthBrown,
-                                                fontSize = 9.sp
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    Column(
-                                        horizontalAlignment = Alignment.End,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Favorite,
-                                            contentDescription = null,
-                                            tint = Color.Red,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = post.likesCount.toString(),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = DarkSoil
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if (selectedTab == 2) {
-                    // TAB 2: SIMPLE SETTINGS INTERACTION
-                    item {
-                        var muteDefault by remember { mutableStateOf(false) }
-                        var alertDefault by remember { mutableStateOf(true) }
-                        var selectBasa by remember { mutableStateOf("Sunda") }
-                        var selectBasaExpanded by remember { mutableStateOf(false) }
-                        var lightweightMode by remember { mutableStateOf(false) }
-                        var isCacheCleared by remember { mutableStateOf(false) }
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = WarmIvorySurface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.3f)),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Text(
-                                    text = "PENGATURAN UTAMA",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = EarthBrownDark,
-                                    letterSpacing = 0.5.sp
-                                )
-
-                                // Alert switch
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("Wara-Wara Lembur (Notifikasi)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DarkSoil)
-                                        Text("Tembongkeun bewara unggahan anyar", fontSize = 10.sp, color = EarthBrown)
-                                    }
-                                    Switch(
-                                        checked = alertDefault,
-                                        onCheckedChange = { alertDefault = it },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = WarmIvorySurface,
-                                            checkedTrackColor = EarthBrownDark,
-                                            uncheckedThumbColor = EarthBrown,
-                                            uncheckedTrackColor = WarmGray
-                                        ),
-                                        modifier = Modifier.testTag("settings_notif_switch")
-                                    )
-                                }
-
-                                // Mute switch
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("Heningkeun Standar (Mute Video)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DarkSoil)
-                                        Text("Setel sora video diheningkeun sacara otomatis", fontSize = 10.sp, color = EarthBrown)
-                                    }
-                                    Switch(
-                                        checked = muteDefault,
-                                        onCheckedChange = { muteDefault = it },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = WarmIvorySurface,
-                                            checkedTrackColor = EarthBrownDark,
-                                            uncheckedThumbColor = EarthBrown,
-                                            uncheckedTrackColor = WarmGray
-                                        ),
-                                        modifier = Modifier.testTag("settings_mute_switch")
-                                    )
-                                }
-
-                                // Lightweight Mode switch
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("Kualitas Hemat Kuota", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DarkSoil)
-                                        Text("Optimalkeun pancaran data ringan", fontSize = 10.sp, color = EarthBrown)
-                                    }
-                                    Switch(
-                                        checked = lightweightMode,
-                                        onCheckedChange = { lightweightMode = it },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = WarmIvorySurface,
-                                            checkedTrackColor = EarthBrownDark,
-                                            uncheckedThumbColor = EarthBrown,
-                                            uncheckedTrackColor = WarmGray
-                                        ),
-                                        modifier = Modifier.testTag("settings_light_switch")
-                                    )
-                                }
-
-                                // Selection Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("Pilihan Basa", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = DarkSoil)
-                                        Text("Pilih basa utama aplikasi Saamparan", fontSize = 10.sp, color = EarthBrown)
-                                    }
-
-                                    Box {
-                                        Surface(
-                                            color = WarmGray,
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.clickable { selectBasaExpanded = true }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(text = selectBasa, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DarkSoil)
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = DarkSoil, modifier = Modifier.size(12.dp))
-                                            }
-                                        }
-
-                                        DropdownMenu(
-                                            expanded = selectBasaExpanded,
-                                            onDismissRequest = { selectBasaExpanded = false },
-                                            modifier = Modifier.background(WarmIvorySurface)
-                                        ) {
-                                            listOf("Sunda", "Indonesia", "English").forEach { lang ->
-                                                DropdownMenuItem(
-                                                    text = { Text(lang, color = DarkSoil, fontSize = 12.sp) },
-                                                    onClick = {
-                                                        selectBasa = lang
-                                                        selectBasaExpanded = false
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Clear cache button
-                                Column {
-                                    Button(
-                                        onClick = { isCacheCleared = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = EarthBrownDark),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                        modifier = Modifier.fillMaxWidth().testTag("clear_cache_btn")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = null,
-                                            tint = WarmIvorySurface,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (isCacheCleared) "Cache Parantos Beresih!" else "Hapus Data Cache (Pancacahan)",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WarmIvorySurface
-                                        )
-                                    }
-                                    if (isCacheCleared) {
-                                        Text(
-                                            text = "Data simpanan lokal parantos dibersihan sacara total.",
-                                            fontSize = 9.sp,
-                                            color = LeafGreenDark,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
-                                    }
-                                }
-
-                                // About App Card
-                                Surface(
-                                    color = WarmGray,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
-                                            tint = EarthBrown,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text("Saamparan v1.2.0", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = DarkSoil)
-                                            Text(
-                                                "Aplikasi gotong royong sarta panyebaran video hyperlocal kanggo urang lembur makin majeng sarta bersahaja.",
-                                                fontSize = 9.sp,
-                                                color = DarkSoil.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Quick comment reply submission strip housed here inside the overlay page (ONLY when Kagiatan tab is open)
-            AnimatedVisibility(
-                visible = selectedTab == 0 && activeVideoPost != null,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
-            ) {
-                Surface(
-                    color = WarmIvorySurface,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            width = 1.dp,
-                            color = EarthBrownLight.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = commentInputText,
-                            onValueChange = { commentInputText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("comment_input_box"),
-                            placeholder = { Text("Serat komentar sawala...", color = EarthBrown, fontSize = 12.sp) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = EarthBrownDark,
-                                unfocusedBorderColor = EarthBrownLight,
-                                focusedTextColor = DarkSoil,
-                                unfocusedTextColor = DarkSoil
-                            ),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        IconButton(
-                            onClick = {
-                                if (commentInputText.isNotBlank()) {
-                                    onCommentPosted(commentInputText)
-                                    commentInputText = ""
-                                }
-                            },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(EarthBrownDark, RoundedCornerShape(10.dp))
-                                .testTag("comment_submit_btn"),
-                            colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(contentColor = WarmIvorySurface)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Send,
-                                contentDescription = "Kirim Komentar",
-                                tint = WarmIvorySurface,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = "Tidak dapat memutar video ini / Offline (Hanya mendukung 360p)",
+                    color = Color.White.copy(0.7f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
@@ -1452,88 +878,72 @@ fun UserProfileOverlay(
 
 @Composable
 fun NotificationBanner(
-    title: String,
-    lembur: String,
-    creator: String,
-    onAction: () -> Unit,
+    post: VideoPost,
     onDismiss: () -> Unit
 ) {
-    Surface(
-        color = EarthBrownDark,
-        shape = RoundedCornerShape(12.dp),
-        shadowElevation = 6.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("notification_banner")
+    var visible by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(post) {
+        kotlinx.coroutines.delay(4500)
+        visible = false
+        onDismiss()
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+        exit = fadeOut() + slideOutVertically(targetOffsetY = { -it })
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .statusBarsPadding(),
+            colors = CardDefaults.cardColors(containerColor = SemiTranslucentDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, KremPekat.copy(0.3f)),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(36.dp)
-                    .background(WarmIvorySurface.copy(0.15f), CircleShape),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Campaign,
-                    contentDescription = null,
-                    tint = WarmIvorySurface,
-                    modifier = Modifier.size(20.dp)
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notifikasi",
+                    tint = KremPekat,
+                    modifier = Modifier.size(24.dp)
                 )
-            }
 
-            Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Konten Baru di Wilayah ${post.lembur}!",
+                        color = KremPekat,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${post.title} - @${post.creatorUsername}",
+                        color = Color.White.copy(0.9f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Unggahan Anyar di Lembur!",
-                    color = WarmIvorySurface,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = "$creator ngabagi video di $lembur",
-                    color = WarmIvorySurface,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = title,
-                    color = WarmIvorySurface.copy(alpha = 0.75f),
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Button(
-                onClick = onAction,
-                colors = ButtonDefaults.buttonColors(containerColor = WarmIvorySurface),
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                modifier = Modifier.testTag("view_notification_btn")
-            ) {
-                Text(
-                    text = "Tonton",
-                    color = EarthBrownDark,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
-
-            IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Tutup",
-                    tint = WarmIvorySurface.copy(0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
+                IconButton(onClick = {
+                    visible = false
+                    onDismiss()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Tutup",
+                        tint = KremPekat,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
@@ -1549,258 +959,365 @@ fun UploadDialog(
     onPost: (title: String, lembur: String, videoUrl: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var descText by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
     var selectedVillage by remember { mutableStateOf(if (lemburs.isNotEmpty()) lemburs[0] else "Situraja") }
     var expandedVillage by remember { mutableStateOf(false) }
 
-    val presets = listOf(
-        Triple("Curug Pamutuh (Air Terjun)", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4", "⛰️"),
-        Triple("Pasawahan Hejo (Sawah Hijau)", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4", "🌾"),
-        Triple("Kagiatan Nyieun Liwet (Sunda)", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4", "🪵"),
-        Triple("Ulin Sapeda di Lembur", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", "🚲")
-    )
-    var selectedPresetUrl by remember { mutableStateOf<String?>(presets[0].second) }
-
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = WarmIvorySurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight),
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .wrapContentHeight()
+                .clip(RoundedCornerShape(16.dp))
+                .background(SemiTranslucentDark)
+                .border(1.dp, KremPekat.copy(0.25f), RoundedCornerShape(16.dp))
+                .padding(20.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Bagikeun Video Anyar",
-                    fontWeight = FontWeight.ExtraBold,
+                    text = "Unggah Video Konten Baru",
+                    color = KremPekat,
                     fontSize = 16.sp,
-                    color = DarkSoil
-                )
-                Text(
-                    text = "Pedarkeun carita, kagiatan, jeung sumanget anyar lembur anjeun!",
-                    fontSize = 11.sp,
-                    color = EarthBrown,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                    fontWeight = FontWeight.Bold
                 )
 
-                Text(
-                    text = "Pilih Lembur (Wilayah)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkSoil,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                Box(
+                // Selected File Info
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(WarmIvoryBg, RoundedCornerShape(8.dp))
-                        .border(1.dp, EarthBrownLight, RoundedCornerShape(8.dp))
-                        .clickable { expandedVillage = true }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.Black.copy(0.4f))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = selectedVillage, color = DarkSoil, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            tint = EarthBrownDark,
-                            modifier = Modifier.size(20.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Berkas Dipilih:",
+                            color = KremPekat,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = selectedVideoName ?: "Tidak ada berkas terpilih",
+                            color = Color.White.copy(0.85f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    DropdownMenu(
-                        expanded = expandedVillage,
-                        onDismissRequest = { expandedVillage = false },
-                        modifier = Modifier.background(WarmIvorySurface)
-                    ) {
-                        lemburs.forEach { v ->
-                            DropdownMenuItem(
-                                text = { Text(text = v, color = DarkSoil) },
-                                onClick = {
-                                    selectedVillage = v
-                                    expandedVillage = false
-                                }
+                    if (selectedVideoUri != null) {
+                        IconButton(onClick = onClearVideo) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Hapus",
+                                tint = KremPekat,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onPickVideo) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = "Pilih Berkas",
+                                tint = KremPekat,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "Sumber Pidéo (File Video)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkSoil,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPickVideo() }
-                        .testTag("upload_gallery_picker"),
-                    colors = CardDefaults.cardColors(containerColor = WarmIvoryBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, EarthBrownLight.copy(0.4f)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
+                // Title Input
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Judul Konten Video",
+                        color = KremPekat,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        placeholder = {
+                            Text(
+                                "Tulis judul yang menarik...",
+                                color = Color.White.copy(0.4f),
+                                fontSize = 12.sp
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Videocam,
-                            contentDescription = null,
-                            tint = EarthBrownDark,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Pilih tina Galéri HP",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DarkSoil
-                            )
-                            Text(
-                                text = if (selectedVideoName != null) {
-                                    "Terpilih: $selectedVideoName"
-                                } else {
-                                    "Pilih berkas video lokal ti memori gallery"
-                                },
-                                fontSize = 10.sp,
-                                color = if (selectedVideoName != null) LeafGreenDark else EarthBrown
-                            )
-                        }
-                        if (selectedVideoName != null) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Batal Pilih",
-                                tint = Color.Red,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clickable {
-                                        onClearVideo()
-                                    }
-                            )
-                        }
-                    }
+                            .testTag("upload_title_input"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White,
+                            fontSize = 12.sp
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            cursorColor = KremPekat,
+                            focusedBorderColor = KremPekat,
+                            unfocusedBorderColor = KremPekat.copy(0.3f),
+                            focusedContainerColor = Color.Black.copy(0.3f),
+                            unfocusedContainerColor = Color.Black.copy(0.3f)
+                        ),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Atanapi pilih sawatara Pidéo Contoh:",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = EarthBrown
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                // Village/Lembur Selector Grid
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Pilih Wilayah",
+                        color = KremPekat,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    presets.forEach { (name, url, emoji) ->
-                        val isPresetSelected = (selectedPresetUrl == url && selectedVideoUri == null)
-                        Box(
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isPresetSelected) EarthBrownDark else WarmIvoryBg)
-                                .border(
-                                    1.dp,
-                                    if (isPresetSelected) EarthBrownDark else EarthBrownLight.copy(0.3f),
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .clickable {
-                                    selectedPresetUrl = url
-                                    onClearVideo()
-                                }
-                                .padding(vertical = 8.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.Black.copy(0.3f))
+                                .border(1.dp, KremPekat.copy(0.3f), RoundedCornerShape(10.dp))
+                                .clickable { expandedVillage = !expandedVillage }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = emoji, fontSize = 16.sp)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = name.split(" ")[0],
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isPresetSelected) WarmIvorySurface else DarkSoil,
-                                    textAlign = TextAlign.Center
+                            Text(
+                                text = selectedVillage,
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown",
+                                tint = KremPekat
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = expandedVillage,
+                            onDismissRequest = { expandedVillage = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .background(SemiTranslucentDark)
+                                .border(1.dp, KremPekat.copy(0.3f), RoundedCornerShape(8.dp))
+                        ) {
+                            lemburs.forEach { village ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = village,
+                                            color = Color.White,
+                                            fontSize = 12.sp
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedVillage = village
+                                        expandedVillage = false
+                                    }
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = "Judul Singget (Maksimal 3-4 Kecap)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkSoil,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = descText,
-                    onValueChange = { descText = it },
-                    placeholder = { Text("Contoh: Bikin kopi lembur", color = EarthBrown, fontSize = 12.sp) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .testTag("upload_title_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EarthBrownDark,
-                        unfocusedBorderColor = EarthBrownLight,
-                        focusedTextColor = DarkSoil,
-                        unfocusedTextColor = DarkSoil
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+                // Actions Button footer
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = "Batal", color = EarthBrownDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Batal",
+                            color = Color.White.copy(0.7f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+
                     Button(
                         onClick = {
-                            if (descText.isNotBlank()) {
-                                val words = descText.split("\\s+".toRegex())
-                                val briefText = if (words.size > 4) {
-                                    words.take(4).joinToString(" ")
-                                } else {
-                                    descText
-                                }
-                                val finalVideoUrl = selectedVideoUri?.toString() ?: selectedPresetUrl
-                                onPost(briefText, selectedVillage, finalVideoUrl)
-                            }
+                            onPost(title, selectedVillage, selectedVideoUri?.toString())
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = EarthBrownDark),
+                        enabled = title.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = KremPekat,
+                            disabledContainerColor = KremPekat.copy(0.3f)
+                        ),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.testTag("upload_submit_dialog_btn")
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .testTag("upload_submit_button")
                     ) {
-                        Text(text = "Kintun (Kirim)", fontWeight = FontWeight.Bold, color = WarmIvorySurface, fontSize = 13.sp)
+                        Text(
+                            text = "Unggah",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CreatorProfileFloatingCard(
+    profile: UserProfile,
+    onCloseClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val transisiDenyutRadar = rememberInfiniteTransition(label = "RadarDenyutMikro")
+    val skalaDenyutRadar by transisiDenyutRadar.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 2.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "SkalaDenyutRadar"
+    )
+    val transparansiDenyutRadar by transisiDenyutRadar.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 0.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "TransparansiDenyutRadar"
+    )
+
+    Box(
+        modifier = modifier
+            .width(200.dp)
+            .wrapContentHeight()
+            .clip(RoundedCornerShape(8.dp))
+            .background(KremPekat)
+            .border(1.2.dp, Color.Black.copy(0.35f), RoundedCornerShape(8.dp))
+            .padding(8.dp)
+            .testTag("creator_profile_floating_card")
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(
+                                color = Color(0xFF2E7D32).copy(alpha = transparansiDenyutRadar),
+                                radius = (size.minDimension / 2) * skalaDenyutRadar
+                            )
+                            drawCircle(
+                                color = Color(0xFF2E7D32),
+                                radius = size.minDimension / 4
+                            )
+                        }
+                    }
+                    Text(
+                        text = "SAAMPARAN",
+                        color = Color.Black.copy(0.6f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+                IconButton(
+                    onClick = onCloseClick,
+                    modifier = Modifier.size(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Tutup",
+                        tint = Color.Black,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                color = Color.Black.copy(0.15f),
+                modifier = Modifier.fillMaxWidth().height(1.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AsyncImage(
+                    model = profile.avatarUrl,
+                    contentDescription = "Foto Profil",
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        text = "@${profile.username}",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "(${profile.lembur})",
+                        color = Color.Black.copy(0.6f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.Black.copy(0.1f))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "SAAMPARAN",
+                        color = Color.Black.copy(0.75f),
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             }
         }

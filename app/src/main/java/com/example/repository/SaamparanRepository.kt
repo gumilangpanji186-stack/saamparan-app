@@ -5,9 +5,15 @@ import com.example.model.Comment
 import com.example.model.UserProfile
 import com.example.model.VideoPost
 import com.example.network.SaamparanKtorClient
+import com.example.database.SaamparanDatabase
+import com.example.database.VideoEntity
+import com.example.database.CreatorLikeEntity
+import com.example.SaamparanApplication
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope
 import java.util.UUID
 
 class SaamparanRepository private constructor() {
@@ -22,17 +28,57 @@ class SaamparanRepository private constructor() {
 
     init {
         initializeFallbackData()
+        
+        // Populate local Room database for WorkManager storage management on startup
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        GlobalScope.launch {
+            try {
+                val context = SaamparanApplication.getAppContext()
+                val db = SaamparanDatabase.getDatabase(context)
+                val videoDao = db.videoDao()
+                val creatorLikeDao = db.creatorLikeDao()
+                
+                val existing = videoDao.getAllVideos()
+                if (existing.isEmpty()) {
+                    localPosts.forEachIndexed { index, post ->
+                        val entity = VideoEntity(
+                            id = post.id,
+                            videoUrl = post.videoUrl,
+                            title = post.title,
+                            lembur = post.lembur,
+                            creatorUsername = post.creatorUsername,
+                            creatorName = post.creatorName,
+                            creatorAvatarUrl = post.creatorAvatarUrl,
+                            creatorBio = post.creatorBio,
+                            // Ensure realistic descending timestamps so that oldest videos are distinguished
+                            downloadTimestamp = System.currentTimeMillis() - (20 - index) * 60 * 1000
+                        )
+                        videoDao.insertVideo(entity)
+
+                        creatorLikeDao.insertOrUpdateCreatorLike(
+                            CreatorLikeEntity(
+                                creatorUsername = post.creatorUsername,
+                                likesCount = post.likesCount
+                            )
+                        )
+                    }
+                    Log.d("SaamparanRepository", "Pre-populated Room Database with initial videos and locked creator likes successfully.")
+                }
+            } catch (e: Exception) {
+                Log.e("SaamparanRepository", "Could not initialize Room DB state on startup: ${e.message}", e)
+            }
+        }
     }
 
     private fun initializeFallbackData() {
         val commentsPost1 = listOf(
-            Comment("c1", "teh_ratih", "Ratih Sukmawati", "Asli seger pisan kang, tiis cai sumur oge eleh! 😍", "2 jam lalu"),
-            Comment("c2", "mang_didin", "Didin Sumedang", "Saturasi hejo na mantap pisan. Dimana eta percisna?", "1 jam lalu")
+            Comment("c1", "teh_ratih", "Ratih Sukmawati", "Asli segar sekali kak, dingin air sumur pun kalah! 😍", "2 jam lalu"),
+            Comment("c2", "mang_didin", "Didin Sumedang", "Saturasi hijaunya mantap sekali. Di mana itu persisnya?", "1 jam lalu")
         )
 
         val commentsPost2 = listOf(
-            Comment("c3", "kabayan_is_back", "Asep Kabayan", "Ditiup angin sawah bari ngadahar simping meujeuhna pisan neng! 🌾", "3 jam lalu"),
-            Comment("c4", "sumedang_creative", "Cecep Saamparan", "Cimalaka emang rajana sawah subur!", "30 mnt lalu")
+            Comment("c3", "kabayan_is_back", "Asep Kabayan", "Ditiup angin sawah sambil makan camilan nikmat sekali kak! 🌾", "3 jam lalu"),
+            Comment("c4", "sumedang_creative", "Cecep Saamparan", "Cimalaka memang rajanya sawah yang subur!", "30 menit lalu")
         )
 
         val p1 = VideoPost(
@@ -43,7 +89,7 @@ class SaamparanRepository private constructor() {
             creatorUsername = "kabayan_is_back",
             creatorName = "Asep Kabayan",
             creatorAvatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Moal loba carita, urang Sumedang asli resep ulin ka leuweung jeung nyaba lembur kuring. Sampurasun!",
+            creatorBio = "Tidak banyak cerita, saya orang Sumedang asli yang suka bermain ke hutan dan berkunjung ke desa saya. Salam sejahtera!",
             likesCount = 142,
             isLiked = false,
             comments = commentsPost1
@@ -57,7 +103,7 @@ class SaamparanRepository private constructor() {
             creatorUsername = "neng_lisna",
             creatorName = "Lisnawati",
             creatorAvatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Resep masak, jalan-jalan di sawah, tur reueus janten mojang Sumedang. Hayu sami-sami urang ngamajukeun lembur!",
+            creatorBio = "Suka memasak, jalan-jalan di sawah, dan bangga menjadi gadis Sumedang. Mari bersama-sama kita memajukan daerah kita!",
             likesCount = 98,
             isLiked = true,
             comments = commentsPost2
@@ -71,11 +117,11 @@ class SaamparanRepository private constructor() {
             creatorUsername = "sumedang_creative",
             creatorName = "Cecep Saamparan",
             creatorAvatarUrl = "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Kreator konten hyperlocal khusus ngeunaan wisata, kuliner, sarta kaendahan alam lembur urang Sumedang.",
+            creatorBio = "Kreator konten hyperlocal khusus tentang wisata, kuliner, serta keindahan alam daerah kami di Sumedang.",
             likesCount = 203,
             isLiked = false,
             comments = listOf(
-                Comment("c5", "neng_lisna", "Lisnawati", "Sok hoyong camping di Ganeas ari ningali langit bengras kieu mah kang!", "4 jam lalu")
+                Comment("c5", "neng_lisna", "Lisnawati", "Sangat ingin berkemah di Ganeas kalau melihat langit cerah seperti ini kanda!", "4 jam lalu")
             )
         )
 
@@ -87,7 +133,7 @@ class SaamparanRepository private constructor() {
             creatorUsername = "mang_didin",
             creatorName = "Didin Sumedang",
             creatorAvatarUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Juru foto amatir nu resep neangan sela barna cahya isuk-isuk di sakuliah Sumedang Utara. Hatur nuhun.",
+            creatorBio = "Fotografer amatir yang suka mencari celah warna cahaya pagi di seluruh Sumedang Utara. Terima kasih.",
             likesCount = 76,
             isLiked = false,
             comments = emptyList()
@@ -101,16 +147,36 @@ class SaamparanRepository private constructor() {
             creatorUsername = "teh_ratih",
             creatorName = "Ratih Sukmawati",
             creatorAvatarUrl = "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Spesialis kulinér sarta ulin alam. Hirup mah kudu loba seuri, loba ulin, sarta asih ka sasama mahluk di lembur. 💚",
+            creatorBio = "Spesialis kuliner dan wisata alam. Hidup itu harus banyak tersenyum, banyak bermain, dan menyayangi sesama makhluk di desa. 💚",
             likesCount = 312,
             isLiked = true,
             comments = listOf(
-                Comment("c6", "mang_didin", "Didin Sumedang", "Lokasi pastina palih mana teh? Curug na herang pisan!", "5 jam lalu"),
-                Comment("c7", "kabayan_is_back", "Asep Kabayan", "Ke atuh urang nyieun liwet di dinya teh, sedep sigana haneut-haneut amun beuteung lapar ahahaha", "2 jam lalu")
+                Comment("c6", "mang_didin", "Didin Sumedang", "Lokasi pastinya di sebelah mana kak? Air terjunnya jernih sekali!", "5 jam lalu"),
+                Comment("c7", "kabayan_is_back", "Asep Kabayan", "Nanti kita buat nasi liwet di sana ya, kelihatannya nikmat sekali hangat-hangat kalau perut lapar ahahaha", "2 jam lalu")
             )
         )
 
         localPosts.addAll(listOf(p1, p2, p3, p4, p5))
+
+        // Programmatically generate 10 more offline-capable fallback posts to have exactly 15 posts total.
+        // This validates the WorkManager cleanup of the 10 oldest videos, leaving 5 posts.
+        for (i in 1..10) {
+            val randomLembur = listOf("Situraja", "Cimalaka", "Ganeas", "Sumedang Utara", "Sumedang Selatan", "Tanjungsari").random()
+            val extraPost = VideoPost(
+                id = "post_extra_$i",
+                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                title = "Pesona indahnya Alam Pasundan Part $i",
+                lembur = randomLembur,
+                creatorUsername = "warga_id_$i",
+                creatorName = "Kreator Warga $i",
+                creatorAvatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+                creatorBio = "Kreator lokal yang gigih berkarya demi kebaikan lembur kuring.",
+                likesCount = (10..150).random(),
+                isLiked = false,
+                comments = emptyList()
+            )
+            localPosts.add(extraPost)
+        }
 
         // Populate users map
         for (post in localPosts) {
@@ -129,6 +195,19 @@ class SaamparanRepository private constructor() {
     }
 
     suspend fun getPosts(lembur: String?): List<VideoPost> {
+        // Sync localPosts list with active database representation (retaining mesh & undeleted items)
+        try {
+            val context = SaamparanApplication.getAppContext()
+            val db = SaamparanDatabase.getDatabase(context)
+            val dbVideos = db.videoDao().getAllVideos()
+            if (dbVideos.isNotEmpty()) {
+                val dbIds = dbVideos.map { it.id }.toSet()
+                localPosts.retainAll { it.id in dbIds || it.id.startsWith("mesh_") }
+            }
+        } catch (e: Exception) {
+            Log.w("SaamparanRepository", "Database sync failed inside getPosts", e)
+        }
+
         return try {
             Log.d("SaamparanRepository", "Attempting cloud query for posts with lembur=$lembur")
             SaamparanKtorClient.getPosts(lembur)
@@ -150,6 +229,22 @@ class SaamparanRepository private constructor() {
             if (index != -1) {
                 localPosts[index] = endpointResult
             }
+            // Persist the like to secure Room table
+            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+            GlobalScope.launch {
+                try {
+                    val context = SaamparanApplication.getAppContext()
+                    val db = SaamparanDatabase.getDatabase(context)
+                    db.creatorLikeDao().insertOrUpdateCreatorLike(
+                        CreatorLikeEntity(
+                            creatorUsername = endpointResult.creatorUsername,
+                            likesCount = endpointResult.likesCount
+                        )
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
             endpointResult
         } catch (e: Exception) {
             Log.w("SaamparanRepository", "Like API failed. Modifying local in-memory state.", e)
@@ -163,6 +258,23 @@ class SaamparanRepository private constructor() {
                 
                 // Keep creator posts synced
                 updateCreatorProfile(updatedPost.creatorUsername)
+
+                // Persist the like to secure Room table
+                @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                GlobalScope.launch {
+                    try {
+                        val context = SaamparanApplication.getAppContext()
+                        val db = SaamparanDatabase.getDatabase(context)
+                        db.creatorLikeDao().insertOrUpdateCreatorLike(
+                            CreatorLikeEntity(
+                                creatorUsername = updatedPost.creatorUsername,
+                                likesCount = updatedLikesCount
+                            )
+                        )
+                    } catch (ex: Exception) {
+                        ex.printStackTrace()
+                    }
+                }
 
                 updatedPost
             } else {
@@ -216,7 +328,7 @@ class SaamparanRepository private constructor() {
                 val defaultProfile = UserProfile(
                     username = username,
                     name = username.replaceFirstChar { it.uppercase() },
-                    bio = "Anggota perkumpulan rasa cinta lembur kuring.",
+                    bio = "Warga perkumpulan rasa cinta lembur kuring.",
                     avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
                     lembur = "Situraja",
                     followersCount = 45,
@@ -260,7 +372,7 @@ class SaamparanRepository private constructor() {
             creatorUsername = creatorUsername,
             creatorName = creatorName,
             creatorAvatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-            creatorBio = "Kreator aktif anu resep babagi kahadean di lembur $lembur.",
+            creatorBio = "Kreator aktif yang suka berbagi kebaikan di wilayah $lembur.",
             likesCount = 0,
             isLiked = false,
             comments = emptyList()
@@ -269,6 +381,30 @@ class SaamparanRepository private constructor() {
         // Add to local state
         localPosts.add(0, newPost)
         updateCreatorProfile(creatorUsername)
+
+        // Save downloaded video metadata into local Room database with a high fidelity timestamp
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        GlobalScope.launch {
+            try {
+                val context = SaamparanApplication.getAppContext()
+                val db = SaamparanDatabase.getDatabase(context)
+                db.videoDao().insertVideo(
+                    VideoEntity(
+                        id = newPost.id,
+                        videoUrl = newPost.videoUrl,
+                        title = newPost.title,
+                        lembur = newPost.lembur,
+                        creatorUsername = newPost.creatorUsername,
+                        creatorName = newPost.creatorName,
+                        creatorAvatarUrl = newPost.creatorAvatarUrl,
+                        creatorBio = newPost.creatorBio,
+                        downloadTimestamp = System.currentTimeMillis()
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         // Dispatch instant notification
         _newPostNotification.emit(newPost)
